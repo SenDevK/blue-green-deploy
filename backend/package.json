@@ -1,0 +1,13 @@
+{
+  "name": "polling-backend",
+  "version": "1.0.0",
+  "description": "Real-time polling app backend",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "socket.io": "^4.4.0"
+  }
+}

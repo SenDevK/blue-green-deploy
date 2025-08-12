@@ -1,0 +1,93 @@
+# --- BLUE VERSION ---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: polling-backend-blue
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: polling-backend
+      version: blue
+  template:
+    metadata:
+      labels:
+        app: polling-backend
+        version: blue
+    spec:
+      containers:
+      - name: backend
+        image: sendevk003/polling-backend:latest
+        ports:
+        - containerPort: 4000
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: polling-frontend-blue
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: polling-frontend
+      version: blue
+  template:
+    metadata:
+      labels:
+        app: polling-frontend
+        version: blue
+    spec:
+      containers:
+      - name: frontend
+        image: sendevk003/polling-frontend:latest
+        ports:
+        - containerPort: 80
+
+--- 
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: polling-backend-green
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: polling-backend
+      version: green
+  template:
+    metadata:
+      labels:
+        app: polling-backend
+        version: green
+    spec:
+      containers:
+      - name: backend
+        # In a real pipeline, this would be a new image tag, e.g., :v2
+        image: sendevk003/polling-backend:latest
+        ports:
+        - containerPort: 4000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: polling-frontend-green
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: polling-frontend
+      version: green
+  template:
+    metadata:
+      labels:
+        app: polling-frontend
+        version: green
+    spec:
+      containers:
+      - name: frontend
+        image: sendevk003/polling-frontend:v2.1
+        ports:
+        - containerPort: 80

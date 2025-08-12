@@ -1,0 +1,76 @@
+name: Blue-Green Deploy to k3d
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Generate unique image tag
+        id: image_tag
+        run: echo "tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # --- Build and Push Both Images ---
+      - name: Build and push backend image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/polling-backend:${{ steps.image_tag.outputs.tag }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/polling-frontend:${{ steps.image_tag.outputs.tag }}
+
+      # --- Setup Kubernetes Cluster ---
+      - name: Install k3d
+        run: curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+
+      - name: Create k3d cluster
+        run: k3d cluster create blue-green-cluster --port "8081:80@loadbalancer"
+
+      - name: Load images into k3d
+        run: |
+          k3d image import ${{ secrets.DOCKERHUB_USERNAME }}/polling-backend:${{ steps.image_tag.outputs.tag }} -c blue-green-cluster
+          k3d image import ${{ secrets.DOCKERHUB_USERNAME }}/polling-frontend:${{ steps.image_tag.outputs.tag }} -c blue-green-cluster
+
+      # --- Deploy Blue and Green Versions ---
+      - name: Deploy Blue and Green Environments
+        run: |
+          # First, replace the placeholder image tags in the deployment with our new unique tag
+          sed -i 's/:latest/:${{ steps.image_tag.outputs.tag }}/g' ./kubernetes/deployment.yml
+          # Apply all manifests (This deploys both Blue and Green pods, with services pointing to Blue)
+          kubectl apply -f ./kubernetes/
+
+      - name: Wait for Blue pods to be ready
+        run: kubectl wait --for=condition=available --timeout=120s deployment/polling-frontend-blue
+
+      # --- Flip the Switch to Green ---
+      - name: Switch traffic to Green Environment
+        run: |
+          echo "--- Switching to Green ---"
+          kubectl patch service polling-frontend-service -p '{"spec":{"selector":{"version":"green"}}}'
+          kubectl patch service polling-backend-service -p '{"spec":{"selector":{"version":"green"}}}'
+          echo "--- Traffic switched successfully! ---"
+
+      - name: Wait for Green pods to be ready
+        run: kubectl wait --for=condition=available --timeout=120s deployment/polling-frontend-green
+
+      - name: Verify the switch
+        run: |
+          echo "--- Verifying service selectors ---"
+          kubectl describe service polling-frontend-service

@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: polling-backend-service
+spec:
+  selector:
+    app: polling-backend
+    # This service now targets the GREEN version.
+    version: green
+  ports:
+    - protocol: TCP
+      port: 4000
+      targetPort: 4000
+
+---
+
+# --- FRONTEND SERVICE ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: polling-frontend-service
+spec:
+  selector:
+    app: polling-frontend
+    # This service now targets the GREEN version.
+    version: green
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
